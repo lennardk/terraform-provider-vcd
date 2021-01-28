@@ -1617,7 +1617,22 @@ func resourceVcdVAppVmDelete(d *schema.ResourceData, meta interface{}) error {
 
 	err = vapp.RemoveVM(*vm)
 	if err != nil {
-		return fmt.Errorf("error deleting: %s", err)
+		log.Printf("[TRACE] Checking if VM is gone from VApp")
+		err2 := vapp.Refresh()
+		if err2 != nil {
+			log.Printf("[DEBUG] error checking for deletion, returning original error")
+			return fmt.Errorf("error deleting: %s", err)
+		}
+		if vapp.VApp.Children != nil {
+			for _, vm2 := range vapp.VApp.Children.VM {
+				if vm.VM.ID == vm2.ID {
+					log.Printf("[DEBUG] VM is still listed in VApp, error appears to be real")
+					return fmt.Errorf("error deleting: %s", err)
+				}
+			}
+		}
+
+		log.Printf("[DEBUG] Assuming RemoveVM succeeded despite error")
 	}
 	log.Printf("[DEBUG] [VM delete] finished")
 	return nil
